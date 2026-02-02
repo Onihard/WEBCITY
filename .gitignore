@@ -1,0 +1,14 @@
+# Local sqlite database
+chat_bot.db
+
+# Virtual env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
