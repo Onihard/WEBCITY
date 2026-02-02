@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Комнаты{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="mb-0"><i class="bi bi-chat-dots"></i> Комнаты</h1>
+        {% if session.get('nickname') %}
+          <a href="{{ url_for('rooms_new') }}" class="btn btn-success"><i class="bi bi-plus-circle"></i> Создать</a>
+        {% endif %}
+      </div>
+      <div class="list-group shadow-sm" id="roomsList">
+        {% for r in rooms %}
+          <div class="list-group-item d-flex justify-content-between align-items-center fadein mb-2 rounded-3" data-room="{{ r.name }}">
+            <div>
+              <a href="{{ url_for('room', room_name=r.name) }}" class="h5 text-decoration-none"><i class="bi bi-door-open"></i> {{ r.name }}</a>
+              <div class="small text-muted">{{ r.description }}</div>
+            </div>
+            <div class="text-end">
+              <span class="badge bg-secondary mb-1 room-count"><i class="bi bi-people"></i> {{ r.count }}</span><br>
+              {% if session.get('nickname') %}
+                <form action="{{ url_for('join_room', room_name=r.name) }}" method="post" class="d-inline">
+                  <button class="btn btn-primary btn-sm mt-1">Войти</button>
+                </form>
+              {% else %}
+                <a class="btn btn-outline-primary btn-sm mt-1" href="{{ url_for('login') }}">Войти</a>
+              {% endif %}
+            </div>
+          </div>
+        {% else %}
+          <div class="alert alert-warning">Нет доступных комнат</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <script>
+    // AJAX-обновление количества участников в комнатах
+    function updateRoomCounts() {
+      document.querySelectorAll('[data-room]').forEach(function(el) {
+        var room = el.getAttribute('data-room');
+        fetch('/room_members/' + encodeURIComponent(room))
+          .then(r => r.json())
+          .then(data => {
+            var count = data.length;
+            var badge = el.querySelector('.room-count');
+            if (badge) badge.innerHTML = '<i class="bi bi-people"></i> ' + count;
+          });
+      });
+    }
+    setInterval(updateRoomCounts, 3000);
+    updateRoomCounts();
+  </script>
+{% endblock %}

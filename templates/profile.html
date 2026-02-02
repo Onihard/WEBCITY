@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Профиль{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7 col-xl-6">
+    <div class="card shadow-lg mt-4">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <img src="https://www.gravatar.com/avatar/{{ user.nickname|gravatar_hash }}?d=identicon" class="rounded-circle border shadow" style="width:64px;height:64px;" alt="avatar">
+          <div>
+            <h2 class="mb-0">{{ user.nickname }}</h2>
+            <div class="text-muted">Профиль пользователя</div>
+          </div>
+        </div>
+        {% if editable %}
+        <form method="post">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Возраст</label>
+              <input class="form-control" name="age" type="number" min="1" max="150" value="{{ user.age or '' }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Пол</label>
+              <select class="form-select" name="gender">
+                <option value="" {% if not user.gender %}selected{% endif %}>Не указан</option>
+                <option value="Мужской" {% if user.gender=='Мужской' %}selected{% endif %}>Мужской</option>
+                <option value="Женский" {% if user.gender=='Женский' %}selected{% endif %}>Женский</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Город</label>
+              <input class="form-control" name="city" value="{{ user.city or '' }}">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Описание</label>
+              <textarea class="form-control" rows="3" name="bio">{{ user.bio or '' }}</textarea>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Увлечения</label>
+              <input class="form-control" name="hobbies" value="{{ user.hobbies or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Девиз</label>
+              <input class="form-control" name="motto" value="{{ user.motto or '' }}">
+            </div>
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button class="btn btn-primary"><i class="bi bi-save"></i> Сохранить</button>
+            <a class="btn btn-secondary" href="{{ url_for('index') }}"><i class="bi bi-arrow-left"></i> Назад</a>
+          </div>
+        </form>
+        {% else %}
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Возраст</label>
+            <input class="form-control" value="{{ user.age or '' }}" disabled>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Пол</label>
+            <input class="form-control" value="{{ user.gender or 'Не указан' }}" disabled>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Город</label>
+            <input class="form-control" value="{{ user.city or '' }}" disabled>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Описание</label>
+            <textarea class="form-control" rows="3" disabled>{{ user.bio or '' }}</textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Увлечения</label>
+            <input class="form-control" value="{{ user.hobbies or '' }}" disabled>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Девиз</label>
+            <input class="form-control" value="{{ user.motto or '' }}" disabled>
+          </div>
+        </div>
+        <div class="mt-4">
+          <a class="btn btn-secondary" href="{{ url_for('index') }}"><i class="bi bi-arrow-left"></i> Назад</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+{% endblock %}

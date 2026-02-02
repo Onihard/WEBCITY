@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Админ: Комнаты{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Админ: Комнаты</h2>
+  <a class="btn btn-success" href="{{ url_for('rooms_new') }}">Создать комнату</a>
+  </div>
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead>
+      <tr>
+        <th>Название</th>
+        <th>Описание</th>
+        <th class="text-end">Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in rooms %}
+      <tr>
+        <td><a href="{{ url_for('room', room_name=r.name) }}">{{ r.name }}</a></td>
+        <td class="text-muted">{{ r.description }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-primary" href="{{ url_for('rooms_edit', room_name=r.name) }}">Изменить</a>
+          <form action="{{ url_for('rooms_delete', room_name=r.name) }}" method="post" class="d-inline" onsubmit="return confirm('Удалить комнату?');">
+            <button class="btn btn-sm btn-outline-danger">Удалить</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="3" class="text-center text-muted">Нет комнат</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
