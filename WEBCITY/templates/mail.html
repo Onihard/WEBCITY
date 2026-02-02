@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Mail удалён{% endblock %}
+{% block content %}
+  <div class="row justify-content-center mt-4">
+    <div class="col-lg-7 col-md-9">
+      <div class="alert alert-info">Раздел <strong>Mail</strong> был удалён. Для личных сообщений используйте <a href="{{ url_for('dm_index') }}">DM</a>.</div>
+    </div>
+  </div>
+{% endblock %}

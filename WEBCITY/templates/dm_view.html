@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}DM: {{ target }}{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-lg-7 col-md-9">
+      <div class="card shadow-lg mt-4">
+        <div class="card-body p-4">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <img src="https://www.gravatar.com/avatar/{{ target|gravatar_hash }}?d=identicon" class="rounded-circle border" style="width:40px;height:40px;" alt="avatar">
+            <h3 class="mb-0">DM: {{ target }}</h3>
+          </div>
+          <div id="dm" class="border rounded-3 p-3 mb-3 bg-body-secondary shadow-sm" style="height: min(60vh, 540px); overflow-y: auto; overflow-x: hidden; word-break: break-word; white-space: pre-wrap; overflow-wrap: anywhere; transition: background 0.2s, color 0.2s;">
+            {% for m in messages %}
+              <div class="d-flex align-items-start gap-2 mb-2" data-id="{{ m['id'] }}">
+                <img src="{{ m['avatar'] }}" class="rounded-circle border" style="width:32px;height:32px; align-self:flex-start;" alt="avatar">
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-center gap-2">
+                    <strong>{{ m['sender_nick'] }}</strong>
+                    <small class="text-muted">{{ m['timestamp'] }}</small>
+                  </div>
+                  <div class="dm-message-text">{{ m['message_text'] }}</div>
+                  {% if m['image'] %}
+                    <div class="mt-2"><img src="{{ url_for('static', filename=m['image']) }}" class="img-fluid rounded" style="max-width:100%;"></div>
+                  {% endif %}
+                </div>
+              </div>
+            {% else %}
+              <div class="text-muted">Нет сообщений</div>
+            {% endfor %}
+          </div>
+          <form id="dmForm" method="post" class="d-flex gap-2" autocomplete="off" enctype="multipart/form-data" onsubmit="event.preventDefault(); sendDM();">
+            <div style="flex:1;">
+              <textarea id="dmInput" name="message" placeholder="Написать сообщение (Shift+Enter — новая строка)..." class="form-control" required maxlength="3000" rows="3" spellcheck="false" style="resize:vertical; min-height:54px;"></textarea>
+              <input id="dmImage" type="file" name="image" accept="image/*" class="form-control form-control-sm mt-2">
+            </div>
+            <button id="dmSendBtn" class="btn btn-primary" type="button" onclick="sendDM();"><i class="bi bi-send"></i></button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<style>
+  /* Тёмная/светлая тема для текста сообщений */
+  html[data-bs-theme='dark'] .dm-message-text {
+    color: #f8f9fa;
+  }
+  html[data-bs-theme='light'] .dm-message-text {
+    color: #212529;
+  }
+  /* Перенос текста и предотвращение горизонтальной прокрутки */
+  .dm-message-text { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
+</style>
+<script>
+// Автоскролл вниз при загрузке
+window.addEventListener('DOMContentLoaded', function() {
+  var dm = document.getElementById('dm');
+  if (dm) dm.scrollTop = dm.scrollHeight;
+  // Enter — отправить (без Shift); Shift+Enter — новая строка
+  var dmInput = document.querySelector('textarea[name="message"]');
+  if (dmInput) {
+    dmInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendDM();
+      }
+    });
+  }
+
+  // Lazy load older DM messages when scrolled to top
+  var oldestId = null;
+  var lastId = null;
+  function initIds() {
+    const first = dm.querySelector('[data-id]');
+    const last = dm.querySelector('[data-id]:last-child');
+    if (first) oldestId = parseInt(first.getAttribute('data-id'));
+    if (last) lastId = parseInt(last.getAttribute('data-id'));
+    // fallback: compute last as the last element if :last-child isn't supported
+    if (!last) {
+      const items = dm.querySelectorAll('[data-id]');
+      if (items.length) lastId = parseInt(items[items.length-1].getAttribute('data-id'));
+    }
+  }
+  initIds();
+  const recentDmIds = new Set();
+  // populate cache of existing message ids
+  dm.querySelectorAll('[data-id]').forEach(el => recentDmIds.add(parseInt(el.getAttribute('data-id'))));
+  var isLoading = false;
+  dm.addEventListener('scroll', async function() {
+    if (dm.scrollTop <= 40 && !isLoading && oldestId) {
+      isLoading = true;
+      try {
+        const res = await fetch(`/get_dm_messages/${encodeURIComponent('{{ target }}')}?before_id=${oldestId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.length) return;
+        const prevHeight = dm.scrollHeight;
+        const frag = document.createDocumentFragment();
+        data.forEach(m => {
+          const div = document.createElement('div');
+          div.className = 'd-flex align-items-start gap-2 mb-2';
+          div.setAttribute('data-id', m.id);
+          const img = document.createElement('img'); img.src = m.avatar; img.className = 'rounded-circle border'; img.style.width='32px'; img.style.height='32px'; img.style.alignSelf='flex-start';
+          const body = document.createElement('div'); body.className='flex-grow-1';
+          const header = document.createElement('div'); header.className='d-flex align-items-center gap-2'; const strong = document.createElement('strong'); strong.textContent = m.sender_nick; const small = document.createElement('small'); small.className='text-muted'; small.textContent = m.timestamp; header.appendChild(strong); header.appendChild(small); const msgdiv = document.createElement('div'); msgdiv.className = 'dm-message-text'; msgdiv.textContent = m.message_text; body.appendChild(header); body.appendChild(msgdiv);
+          if (m.image) {
+            const imgcont = document.createElement('div'); imgcont.className='mt-2'; const i = document.createElement('img'); i.src = '/static/' + m.image; i.className='img-fluid rounded'; i.style.maxWidth='100%'; imgcont.appendChild(i); body.appendChild(imgcont);
+          }
+          div.appendChild(img); div.appendChild(body); frag.appendChild(div);
+              oldestId = Math.min(oldestId, m.id);
+          lastId = Math.max(lastId || 0, m.id);
+        });
+        dm.insertBefore(frag, dm.firstChild);
+        // keep scroll position
+        dm.scrollTop = dm.scrollHeight - prevHeight + dm.scrollTop;
+      } catch(e) {
+        console.error(e);
+      } finally { isLoading = false; }
+    }
+  });
+
+  // Poll for new DM messages (skip duplicates if already rendered)
+  setInterval(async function() {
+    if (!lastId) return;
+    try {
+      const res = await fetch(`/get_dm_messages/${encodeURIComponent('{{ target }}')}?after_id=${lastId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.length) return;
+      data.forEach(m => {
+        // skip if already exists in DOM or recently appended
+        if (dm.querySelector('[data-id="'+m.id+'"]') || recentDmIds.has(m.id)) return;
+        const div = document.createElement('div');
+        div.className = 'd-flex align-items-start gap-2 mb-2';
+        div.setAttribute('data-id', m.id);
+        const img = document.createElement('img'); img.src = m.avatar; img.className = 'rounded-circle border'; img.style.width='32px'; img.style.height='32px'; img.style.alignSelf='flex-start';
+        const body = document.createElement('div'); body.className='flex-grow-1';
+        const header = document.createElement('div'); header.className='d-flex align-items-center gap-2'; const strong = document.createElement('strong'); strong.textContent = m.sender_nick; const small = document.createElement('small'); small.className='text-muted'; small.textContent = m.timestamp; header.appendChild(strong); header.appendChild(small);
+        const msgdiv = document.createElement('div'); msgdiv.className = 'dm-message-text'; msgdiv.textContent = m.message_text;
+        body.appendChild(header); body.appendChild(msgdiv);
+        if (m.image) {
+          const imgcont = document.createElement('div'); imgcont.className='mt-2'; const i = document.createElement('img'); i.src = '/static/' + m.image; i.className='img-fluid rounded'; i.style.maxWidth='200px'; i.style.cursor='pointer'; i.addEventListener('click', ()=>window.open(i.src,'_blank','noopener'));
+          imgcont.appendChild(i); body.appendChild(imgcont);
+        }
+        div.appendChild(img); div.appendChild(body); dm.appendChild(div);
+        recentDmIds.add(m.id);
+        lastId = Math.max(lastId, m.id);
+        dm.scrollTop = dm.scrollHeight; // keep at bottom if user at bottom
+      });
+    } catch(e) { console.error(e); }
+  }, 2500);
+
+  // send DM via AJAX
+  window.sendDM = async function() {
+    const ta = document.getElementById('dmInput');
+    const text = ta.value.trim();
+    if (!text && !document.getElementById('dmImage').files.length) return;
+    if (Date.now() - (window.lastDmAt || 0) < 2000) return;
+    if (text.length > 3000) { alert('Сообщение слишком длинное (макс 3000).'); return; }
+    const formData = new FormData(document.getElementById('dmForm'));
+    try {
+      const res = await fetch(`{{ url_for('dm_send', target_nick=target) }}`, { method:'POST', body: formData, headers: {'X-Requested-With':'XMLHttpRequest'} });
+      if (!res.ok) { if (res.status === 429) alert('Слишком быстро. Подождите.'); return; }
+      const data = await res.json();
+      // append locally if not present
+      if (!dm.querySelector('[data-id="'+data.id+'"]')) {
+        const div = document.createElement('div');
+        div.className = 'd-flex align-items-start gap-2 mb-2';
+        div.setAttribute('data-id', data.id);
+        const img = document.createElement('img'); img.src = data.avatar; img.className = 'rounded-circle border'; img.style.width='32px'; img.style.height='32px'; img.style.alignSelf='flex-start';
+        const body = document.createElement('div'); body.className='flex-grow-1';
+        const header = document.createElement('div'); header.className='d-flex align-items-center gap-2'; const strong = document.createElement('strong'); strong.textContent = '{{ nick }}'; const small = document.createElement('small'); small.className='text-muted'; small.textContent = data.time; header.appendChild(strong); header.appendChild(small);
+        const msgdiv = document.createElement('div'); msgdiv.className='dm-message-text'; msgdiv.textContent = text;
+        body.appendChild(header); body.appendChild(msgdiv);
+        if (data.image) {
+          const imgcont = document.createElement('div'); imgcont.className='mt-2'; const i = document.createElement('img'); i.src = '/static/' + data.image; i.className='img-fluid rounded'; i.style.maxWidth='200px'; i.style.cursor='pointer'; i.addEventListener('click', ()=>window.open(i.src,'_blank','noopener')); imgcont.appendChild(i); body.appendChild(imgcont);
+        }
+        div.appendChild(img); div.appendChild(body); dm.appendChild(div);
+        recentDmIds.add(data.id);
+        dm.scrollTop = dm.scrollHeight;
+      }
+      ta.value = '';
+      document.getElementById('dmImage').value = '';
+      window.lastDmAt = Date.now();
+      lastId = Math.max(lastId || 0, data.id);
+    } catch(e) { console.error(e); }
+  };
+
+});
+</script>
+{% endblock %}
