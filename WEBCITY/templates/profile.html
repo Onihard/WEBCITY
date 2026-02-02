@@ -6,14 +6,18 @@
     <div class="card shadow-lg mt-4">
       <div class="card-body p-4">
         <div class="d-flex align-items-center gap-3 mb-4">
-          <img src="https://www.gravatar.com/avatar/{{ user.nickname|gravatar_hash }}?d=identicon" class="rounded-circle border shadow" style="width:64px;height:64px;" alt="avatar">
+          {% if user.avatar_path %}
+            <img src="{{ url_for('static', filename=user.avatar_path) }}" class="rounded-circle border shadow" style="width:64px;height:64px;" alt="avatar">
+          {% else %}
+            <img src="https://www.gravatar.com/avatar/{{ user.nickname|gravatar_hash }}?d=identicon" class="rounded-circle border shadow" style="width:64px;height:64px;" alt="avatar">
+          {% endif %}
           <div>
             <h2 class="mb-0">{{ user.nickname }}</h2>
             <div class="text-muted">Профиль пользователя</div>
           </div>
         </div>
         {% if editable %}
-        <form method="post">
+        <form method="post" enctype="multipart/form-data">
           <div class="row g-3">
             <div class="col-md-4">
               <label class="form-label">Возраст</label>
@@ -34,6 +38,10 @@
             <div class="col-12">
               <label class="form-label">Описание</label>
               <textarea class="form-control" rows="3" name="bio">{{ user.bio or '' }}</textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Аватар (png/jpg, макс 5MB)</label>
+              <input type="file" name="avatar" accept="image/*" class="form-control form-control-sm">
             </div>
             <div class="col-md-6">
               <label class="form-label">Увлечения</label>

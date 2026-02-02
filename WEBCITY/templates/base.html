@@ -15,12 +15,15 @@
     .fadein { animation: fadein 0.7s; }
     @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
     .gravatar { border-radius: 50%; width: 32px; height: 32px; margin-right: 8px; }
+    .message-text { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
+    img.message-image { max-width: 100%; height: auto; }
+
   </style>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
   <div class="container">
-    <a class="navbar-brand" href="{{ url_for('index') }}">ChatWeb</a>
+    <a class="navbar-brand" href="{{ url_for('index') }}">WEBCITY</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas">
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -31,7 +34,11 @@
         </li>
         {% if session.get('nickname') %}
           <li class="nav-item d-flex align-items-center">
+            {% if session_avatar %}
+            <img class="gravatar" src="{{ session_avatar }}" alt="avatar">
+          {% else %}
             <img class="gravatar" src="https://www.gravatar.com/avatar/{{ session['nickname']|gravatar_hash }}?d=identicon" alt="avatar">
+          {% endif %}
             <span class="nav-link">Привет, {{ session['nickname'] }}</span>
           </li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">Профиль</a></li>
@@ -39,7 +46,6 @@
             <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_rooms') }}">Админ</a></li>
           {% endif %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('dm_index') }}">DM</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('mail') }}">Mail</a></li>
           <li class="nav-item">
             <form action="{{ url_for('logout') }}" method="post" class="d-inline">
               <button class="btn btn-sm btn-outline-light">Выйти</button>
@@ -111,7 +117,7 @@ if (window.location.pathname.startsWith('/room/')) {
 if (inRoom) {
   window.addEventListener('DOMContentLoaded', function() {
     // Навесить обработчик на все ссылки и формы в navbar
-    document.querySelectorAll('a.nav-link, .navbar-brand, form[action$="logout"] button, a.btn, a[href="/profile"], a[href^="/profile/"], a[href="/dm"], a[href^="/dm"], a[href="/mail"], a[href="/"], a[href="/index"], a[href="/register"], a[href="/login"], a[href="/admin_rooms"]').forEach(function(el) {
+    document.querySelectorAll('a.nav-link, .navbar-brand, form[action$="logout"] button, a.btn, a[href="/profile"], a[href^="/profile/"], a[href="/dm"], a[href^="/dm"], a[href="/"], a[href="/index"], a[href="/register"], a[href="/login"], a[href="/admin_rooms"]').forEach(function(el) {
       el.addEventListener('click', function(e) {
         // Не показывать для кнопки "Выйти из комнаты"
         if (el.closest('form[action$="leave_room"]')) return;

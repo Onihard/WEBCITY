@@ -12,13 +12,14 @@
       </form>
     </div>
 
-    <div id="messages" class="border rounded-3 p-3 bg-body-secondary shadow-sm" style="height: 420px; overflow-y: auto;">
+    <div id="messages" class="border rounded-3 p-3 bg-body-secondary shadow-sm" style="height: min(70vh, 640px); overflow-y: auto; overflow-x: hidden; word-break: break-word; white-space: pre-wrap; overflow-wrap: anywhere;">
       <!-- Сообщения будут подгружаться сюда -->
     </div>
 
-    <form class="mt-3 d-flex gap-2" onsubmit="event.preventDefault(); sendMessage();">
-      <input id="messageInput" placeholder="Написать сообщение..." class="form-control" autocomplete="off" required maxlength="500">
-      <button id="sendBtn" class="btn btn-success"><i class="bi bi-send"></i></button>
+    <form class="mt-3 d-flex gap-2" onsubmit="event.preventDefault(); sendMessage();" autocomplete="off" enctype="multipart/form-data">
+      <textarea id="messageInput" name="message" placeholder="Написать сообщение (Shift+Enter — новая строка)..." class="form-control" autocomplete="new-message" required maxlength="3000" rows="2" spellcheck="false" style="resize:vertical; min-height:54px;"></textarea>
+      <input type="file" id="imageInput" name="image" accept="image/*" class="form-control form-control-sm" style="max-width:120px;">
+      <button id="sendBtn" type="button" class="btn btn-success"><i class="bi bi-send"></i></button>
     </form>
 
     <div class="mt-2">
@@ -50,6 +51,7 @@ let autoScroll = true;         // автоскролл к низу, если п�
 const BOTTOM_THRESHOLD = 40;   // px от низа, чтобы считать, что пользователь внизу
 const TOP_THRESHOLD = 40;      // px от верха, чтобы грузить старые
 const MAX_MESSAGES = 300;      // ограничение на количество DOM-узлов
+const recentRoomIds = new Set();
 
 function gravatarUrl(nick) {
   // Простейший md5 (только для демонстрации, лучше делать на сервере)
@@ -59,11 +61,13 @@ function gravatarUrl(nick) {
 function renderMessage(m) {
   const div = document.createElement('div');
   div.className = 'd-flex align-items-start gap-2 mb-2 fadein';
+  if (m.id) div.setAttribute('data-id', m.id);
   const avatar = document.createElement('img');
-  avatar.src = gravatarUrl(m.nickname);
+  avatar.src = m.avatar || gravatarUrl(m.nickname);
   avatar.className = 'rounded-circle border shadow-sm';
   avatar.style.width = '36px';
   avatar.style.height = '36px';
+  avatar.style.alignSelf = 'flex-start';
   avatar.alt = 'avatar';
   div.appendChild(avatar);
     const body = document.createElement('div');
@@ -77,23 +81,19 @@ function renderMessage(m) {
     time.className = 'text-muted';
     time.textContent = m.time;
     head.appendChild(time);
-    // Кнопка удаления для своих сообщений
-    if (window.currentUser && m.nickname === window.currentUser) {
-      const delBtn = document.createElement('button');
-      delBtn.className = 'btn btn-sm btn-outline-danger ms-2';
-      delBtn.innerHTML = '<i class="bi bi-trash"></i>';
-      delBtn.title = 'Удалить';
-      delBtn.onclick = function() {
-        fetch('/delete_message/' + m.id, {method: 'POST'})
-          .then(r => r.json())
-          .then(res => { if (res.ok) div.remove(); });
-      };
-      head.appendChild(delBtn);
-    }
+    // Удаление сообщений отключено — функция удалена на сервере.
     body.appendChild(head);
     const text = document.createElement('div');
+    text.className = 'message-text';
     text.textContent = m.text;
     body.appendChild(text);
+    if (m.image) {
+      const imgwrap = document.createElement('div'); imgwrap.className='mt-2';
+      const i = document.createElement('img'); i.src = '/static/' + m.image; i.style.maxWidth='200px'; i.className='rounded message-image'; i.style.cursor='pointer';
+      i.addEventListener('click', function(){ window.open(i.src, '_blank', 'noopener'); });
+      imgwrap.appendChild(i);
+      body.appendChild(imgwrap);
+    }
     div.appendChild(body);
     return div;
 }
@@ -103,6 +103,14 @@ function atBottom() {
   const delta = messagesDiv.scrollHeight - messagesDiv.clientHeight - messagesDiv.scrollTop;
   return delta <= BOTTOM_THRESHOLD;
 }
+
+// Обработчик Enter: Enter — отправить (без Shift), Shift+Enter — новая строка
+messageInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
 
 function scrollToBottom() {
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -124,6 +132,7 @@ async function initialLoad() {
     if (!data.length) return;
     data.forEach(m => {
       messagesDiv.appendChild(renderMessage(m));
+      if (m.id) recentRoomIds.add(m.id);
       oldestMessageId = oldestMessageId == null ? m.id : Math.min(oldestMessageId, m.id);
       lastMessageId = m.id; // в конце будет id самого нового
     });
@@ -145,7 +154,10 @@ async function loadNewMessages() {
     if (!data.length) return;
 
     data.forEach(m => {
+      // пропускаем, если уже есть
+      if (m.id && messagesDiv.querySelector('[data-id="'+m.id+'"]')) return;
       messagesDiv.appendChild(renderMessage(m));
+      if (m.id) recentRoomIds.add(m.id);
       lastMessageId = m.id;
       if (oldestMessageId == null) oldestMessageId = m.id;
     });
@@ -174,6 +186,7 @@ async function loadOlderMessages() {
     const fragment = document.createDocumentFragment();
     data.forEach(m => {
       fragment.appendChild(renderMessage(m));
+      if (m.id) recentRoomIds.add(m.id);
       oldestMessageId = Math.min(oldestMessageId, m.id);
       if (lastMessageId == null) lastMessageId = m.id;
     });
@@ -191,22 +204,63 @@ async function loadOlderMessages() {
 
 // Отправка сообщения через fetch (без перезагрузки)
 async function sendMessage() {
+  if (window.sendInProgress) return; // prevent concurrent sends
+  window.sendInProgress = true;
   const text = messageInput.value.trim();
-  if (!text) return;
+  if (!text) { window.sendInProgress = false; return; }
+  // Ограничение длины на клиенте
+  if (text.length > 3000) {
+    alert('Сообщение слишком длинное (макс 3000 символов)');
+    window.sendInProgress = false; return;
+  }
+  // клиентский rate limit (защитный слой)
+  if (Date.now() - lastSendAt < 2000) {
+    // игнорируем попытку
+    window.sendInProgress = false; return;
+  }
   try {
     const formData = new FormData();
     formData.append('message', text);
+    const fileInput = document.getElementById('imageInput');
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      const f = fileInput.files[0];
+      if (f.size <= 5 * 1024 * 1024) {
+        formData.append('image', f, f.name);
+      } else {
+        alert('Файл слишком большой (макс 5MB)');
+        window.sendInProgress = false; return;
+      }
+    }
     const res = await fetch(`/send_message/${encodeURIComponent(roomName)}`, {
       method: 'POST',
-      body: formData
+      body: formData,
+      headers: {'X-Requested-With': 'XMLHttpRequest'}
     });
     if (res.ok) {
+      // server returns json with id/time/avatar/image when X-Requested-With is set
+      try {
+        const data = await res.json();
+        // append locally if not already present
+        if (data && data.id && !messagesDiv.querySelector('[data-id="'+data.id+'"]') && !recentRoomIds.has(data.id)) {
+          messagesDiv.appendChild(renderMessage({id: data.id, nickname: window.currentUser, text: text, time: data.time, avatar: data.avatar, image: data.image}));
+          recentRoomIds.add(data.id);
+        }
+      } catch(e) {
+        // non-json or no data — fall back to polling
+        console.warn('No JSON response on send, falling back to polling');
+      }
+      // очистим поле сообщения и файл (чтобы следующий отправленный не брал предыдущую картинку)
       messageInput.value = '';
+      const imgInp = document.getElementById('imageInput'); if (imgInp) imgInp.value = '';
       autoScroll = true; // после отправки логично удерживать низ
-      loadNewMessages();
+      blockSendButtonFor(2000);
+      lastSendAt = Date.now();
+      if (autoScroll) scrollToBottom();
     }
   } catch(e) {
     console.error('Ошибка при отправке сообщения', e);
+  } finally {
+    window.sendInProgress = false;
   }
 }
 
@@ -218,6 +272,8 @@ function safeInit() {
   setInterval(loadNewMessages, 2000);
 }
 
+let lastSendAt = 0;
+
 sendBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
@@ -225,6 +281,37 @@ messageInput.addEventListener('keydown', e => {
     sendMessage();
   }
 });
+
+// предотвращаем мульти-отправки: блокируем кнопку на 2 секунды после отправки
+function blockSendButtonFor(ms) {
+  sendBtn.disabled = true;
+  setTimeout(()=> sendBtn.disabled = false, ms);
+}
+
+// Socket.IO: подключаемся и слушаем новые сообщения
+(function(){
+  const script = document.createElement('script');
+  script.src = 'https://cdn.socket.io/4.9.3/socket.io.min.js';
+  script.onload = function() {
+    const socket = io();
+    // соединимся и присоединимся к комнате
+    socket.on('connect', function() {
+      socket.emit('join_room', {room: roomName, nick: window.currentUser});
+    });
+    socket.on('new_message', function(m){
+      if (!m) return;
+      // Если уже есть сообщение с таким id — не добавляем
+      if (m.id && (messagesDiv.querySelector('[data-id="'+m.id+'"]') || recentRoomIds.has(m.id))) return;
+      // m.time уже отформатировано на сервере
+      messagesDiv.appendChild(renderMessage({id: m.id, nickname: m.nickname, text: m.text, time: m.time, avatar: m.avatar, image: m.image}));
+      if (m.id) recentRoomIds.add(m.id);
+      trimIfNeeded();
+      if (autoScroll) scrollToBottom();
+    });
+  };
+  document.body.appendChild(script);
+})();
+
 
 messagesDiv.addEventListener('scroll', () => {
   autoScroll = atBottom();
@@ -268,13 +355,11 @@ async function updateMembers() {
       li.appendChild(dot);
       // ник (ссылка на профиль)
       const link = document.createElement('a');
-      link.href = '#';
+      link.href = '/profile/' + encodeURIComponent(u.nickname);
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
       link.textContent = u.nickname;
       link.className = 'ms-2 text-decoration-none';
-      link.onclick = function(e) {
-        e.preventDefault();
-        openModal('Профиль: ' + u.nickname, '/profile_modal/' + encodeURIComponent(u.nickname));
-      };
       li.appendChild(link);
       membersList.appendChild(li);
     });

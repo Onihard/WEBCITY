@@ -4,7 +4,7 @@
   <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="mb-0"><i class="bi bi-chat-dots"></i> Комнаты</h1>
+        <h1 class="mb-0"><i class="bi bi-chat-dots"></i> Комнаты <span id="siteOnlineCount" class="badge bg-success ms-2">Онлайн: {{ online_count }}</span></h1>
         {% if session.get('nickname') %}
           <a href="{{ url_for('rooms_new') }}" class="btn btn-success"><i class="bi bi-plus-circle"></i> Создать</a>
         {% endif %}
@@ -50,5 +50,18 @@
     }
     setInterval(updateRoomCounts, 3000);
     updateRoomCounts();
+
+    // Обновление количества пользователей на сайте
+    async function updateOnlineCount() {
+      try {
+        const res = await fetch('/online_count');
+        if (!res.ok) return;
+        const j = await res.json();
+        const el = document.getElementById('siteOnlineCount');
+        if (el) el.textContent = 'Онлайн: ' + j.online;
+      } catch(e) { console.error(e); }
+    }
+    setInterval(updateOnlineCount, 10000);
+    updateOnlineCount();
   </script>
 {% endblock %}
